@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: secure-file-storage-service
+spec:
+  ports:
+  - port: 8081
+    targetPort: 8081
+    protocol: TCP
+  type: ClusterIP
+  selector:
+    app: secure-file-storage
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secure-file-storage-deployment
+spec:
+  selector:
+    matchLabels:
+      app: secure-file-storage
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: secure-file-storage
+    spec:
+# Uncomment only if you are not deploying to the default namespace
+# In this case, make sure to create a Docker registry secret...
+#      imagePullSecrets:
+#        - name: $IMAGE_PULL_SECRET
+      containers:
+      - name: secure-file-storage-container
+        image: us.icr.io/devx_namespace/secure-file-storage:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8081
+        envFrom:
+         - secretRef:
+            name: secure-file-storage-credentials
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ingress-for-secure-file-storage
+  annotations:
+    # protect the service with App ID
+    ingress.bluemix.net/appid-auth: "bindSecret=binding-secure-file-storage-appid namespace=default requestType=web serviceName=secure-file-storage-service"
+    # increase max upload size
+    ingress.bluemix.net/client-max-body-size: "50m"
+spec:
+  tls:
+  - hosts:
+    - secure-file-storage.devx-playground.us-south.containers.appdomain.cloud
+    secretName: devx-playground
+# Uncomment below if you are using a custom domain
+#  - hosts:
+#    - secure-file-storage.<your custom domain>
+#    secretName: secure-file-storage-certificate
+  rules:
+  - host: secure-file-storage.devx-playground.us-south.containers.appdomain.cloud
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: secure-file-storage-service
+          servicePort: 8081
+# Uncomment below if you are using a custom domain
+#  - host: secure-file-storage.<your custom domain>
+#    http:
+#      paths:
+#      - path: /
+#        backend:
+#          serviceName: secure-file-storage-service
+#          servicePort: 8081
